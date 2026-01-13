@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>宿命战棋 - 房间对战版</title>
+    <title>谁是中杯？ - 11.12版</title>
     <style>
         body {
             background-color: #2c3e50;
@@ -13,99 +13,150 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            height: 100vh;
-            overflow: hidden;
+            min-height: 100vh;
+            overflow-y: auto; 
+            padding-bottom: 50px; 
         }
 
-        /* --- 登录界面样式 --- */
+        /* 登录界面 */
         #login-screen {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: #2c3e50;
-            z-index: 999;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #2c3e50; z-index: 999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
         }
         .login-box {
-            background: #34495e;
-            padding: 40px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            background: #34495e; padding: 40px; border-radius: 10px; text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px;
         }
-        .login-box h1 { margin: 0 0 20px 0; color: #f1c40f; }
+        .login-box h1 { margin: 0 0 10px 0; color: #f1c40f; }
         .login-box input {
-            padding: 10px; font-size: 18px; border-radius: 5px; border: none; outline: none; text-align: center; width: 200px; margin-bottom: 15px;
+            padding: 12px; font-size: 16px; border-radius: 5px; border: none; outline: none; text-align: center; width: 220px;
         }
         .login-box button {
-            padding: 10px 30px; font-size: 18px; border-radius: 5px; border: none; cursor: pointer; background: #e74c3c; color: white; font-weight: bold; transition: 0.2s;
+            padding: 12px; font-size: 18px; border-radius: 5px; border: none; cursor: pointer; background: #e74c3c; color: white; font-weight: bold; transition: 0.2s;
         }
         .login-box button:hover { background: #c0392b; }
 
-        /* --- 游戏主界面 (默认隐藏) --- */
-        #main-ui { display: none; width: 100%; height: 100%; flex-direction: column; align-items: center; padding-top: 20px;}
-
-        /* --- 原有样式保持不变 --- */
+        /* 主界面 */
+        #main-ui { display: none; width: 100%; flex-direction: column; align-items: center; padding-top: 20px;}
         #status-bar { font-size: 24px; margin-bottom: 10px; font-weight: bold; display: flex; gap: 30px;}
         #turn-info { color: #f1c40f; }
+
         #main-area { display: flex; gap: 20px; align-items: flex-start; }
-        .sidebar { width: 180px; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px; min-height: 400px; }
-        .sidebar h3 { text-align: center; margin: 5px 0 15px 0; border-bottom: 1px solid #aaa; padding-bottom: 5px;}
+        
+        /* 侧边栏 (行动队列) */
+        .sidebar { width: 200px; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px; min-height: 400px; }
+        .sidebar h3 { text-align: center; margin: 5px 0 15px 0; border-bottom: 1px solid #aaa; padding-bottom: 5px; font-size: 18px;}
         .team-title-A { color: #e74c3c; }
         .team-title-B { color: #3498db; }
+
         .queue-item { background: rgba(255,255,255,0.1); margin-bottom: 8px; padding: 8px; border-radius: 4px; display: flex; flex-direction: column; font-size: 14px; transition: all 0.3s; }
         .queue-item.current { background: linear-gradient(90deg, #f39c12, #e67e22); transform: scale(1.05); box-shadow: 0 0 10px #f1c40f; border: 2px solid #fff; }
         .queue-item.dead { opacity: 0.3; filter: grayscale(100%); text-decoration: line-through; }
+        .q-header { display: flex; justify-content: space-between; align-items: center; }
         .q-name { font-weight: bold; font-size: 16px; }
-        .q-rank { font-size: 12px; color: #ddd; margin-top: 2px; }
+        .q-hp { font-size: 14px; color: #e74c3c; font-weight: bold; }
+        .q-rank { font-size: 12px; color: #bbb; margin-top: 4px; }
+
+        /* 游戏棋盘区域 */
         #game-container { position: relative; width: 500px; height: 500px; background: #ecf0f1; border-radius: 4px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
         canvas { position: absolute; top: 0; left: 0; }
         #click-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; }
         #pieces-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
+        
+        /* 棋子样式 */
         .piece { position: absolute; width: 44px; height: 44px; border-radius: 50%; transform: translate(-50%, -50%); display: flex; justify-content: center; align-items: center; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); pointer-events: auto; z-index: 11; font-size: 12px; text-align: center; line-height: 1.1; transition: all 0.3s; }
         .team-A { background: #e74c3c; color: white; border: 2px solid #c0392b; }
         .team-B { background: #3498db; color: white; border: 2px solid #2980b9; }
         .p-name { padding: 0 4px; } 
+        
+        /* 当前回合选中效果 */
         .active { box-shadow: 0 0 0 4px #f1c40f, 0 0 20px #f1c40f; z-index: 100 !important; transform: translate(-50%, -50%) scale(1.15); animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { box-shadow: 0 0 0 0px rgba(241, 196, 15, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(241, 196, 15, 0); } 100% { box-shadow: 0 0 0 0px rgba(241, 196, 15, 0); } }
+
+        /* 特殊状态特效 */
+        .chimera-active {
+            box-shadow: 0 0 0 4px #e74c3c, 0 0 30px #e74c3c !important; 
+            border-color: #c0392b !important;
+            animation: chimera-pulse 0.8s infinite alternate !important;
+        }
+        @keyframes chimera-pulse { 0% { transform: translate(-50%, -50%) scale(1.1); } 100% { transform: translate(-50%, -50%) scale(1.2); } }
+
         .grid-click-area { position: absolute; width: 40px; height: 40px; transform: translate(-50%, -50%); border-radius: 50%; cursor: pointer; }
+
+        /* 日志区域 */
+        #log-area { width: 900px; max-height: 150px; height: 150px; background: rgba(0,0,0,0.5); margin-top: 15px; border-radius: 8px; padding: 10px; overflow-y: auto; font-size: 14px; border: 1px solid #7f8c8d; box-sizing: border-box; }
+        .log-entry { margin-bottom: 4px; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 2px; }
+        .log-highlight { color: #f1c40f; font-weight: bold; }
+        .log-win { color: #2ecc71; }
+        .log-special { color: #e74c3c; font-weight: bold; text-shadow: 0 0 5px #c0392b; }
+
+        /* 技能按钮 */
+        #skill-panel { position: absolute; bottom: 10px; right: 10px; z-index: 200; }
+        .skill-btn { background: linear-gradient(45deg, #8e44ad, #9b59b6); color: white; border: 2px solid #fff; padding: 8px 15px; border-radius: 20px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); display: none; animation: bounce 2s infinite; }
+        .skill-btn.targeting { background: #e74c3c; animation: none; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
+        /* 反应弹窗 (VE/A2通用) */
+        #reaction-panel {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(44, 62, 80, 0.95); border: 2px solid #f39c12;
+            padding: 20px; border-radius: 10px; z-index: 300; display: none;
+            text-align: center; box-shadow: 0 0 20px rgba(0,0,0,0.8); min-width: 250px;
+        }
+        #reaction-msg { margin-bottom: 15px; font-weight: bold; font-size: 16px; line-height: 1.5; }
+        .react-btn { padding: 8px 20px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold; margin: 0 10px; font-size: 14px; transition: 0.2s; }
+        .btn-reject { background: #e74c3c; color: white; } 
+        .btn-accept { background: #2ecc71; color: white; }
+        .react-btn:hover { transform: scale(1.1); }
+
     </style>
 </head>
 <body>
-
     <div id="login-screen">
         <div class="login-box">
-            <h1>宿命战棋</h1>
-            <p style="color:#aaa; font-size: 14px; margin-bottom: 20px;">输入相同房间号即可对战</p>
-            <input type="text" id="room-input" placeholder="输入房间号 (如 666)" />
-            <br>
-            <button onclick="joinRoom()">进入战场</button>
-            <p id="login-msg" style="color: #e74c3c; margin-top: 10px; height: 20px;"></p>
+            <h1>🥣 谁是中杯？</h1>
+            <input type="text" id="nickname-input" placeholder="请输入昵称" maxlength="8">
+            <input type="text" id="room-input" placeholder="请输入房间号">
+            <button onclick="joinRoom()">开始对战</button>
+            <p id="login-msg" style="color: #e74c3c; margin: 0; font-size: 14px; height: 20px;"></p>
         </div>
     </div>
 
     <div id="main-ui">
         <div id="status-bar">
-            <span id="room-display" style="color:#aaa; font-size:18px;"></span>
+            <span id="room-display" style="color:#bdc3c7; font-size:18px;"></span>
             <span id="turn-info">等待对手...</span>
         </div>
         <div id="main-area">
             <div class="sidebar" id="sidebar-A">
-                <h3 class="team-title-A">A队行动表</h3>
+                <h3 class="team-title-A" id="title-A">A方</h3>
                 <div id="list-A"></div>
             </div>
+
             <div id="game-container">
                 <canvas id="boardCanvas" width="500" height="500"></canvas>
                 <div id="click-layer"></div>
                 <div id="pieces-layer"></div>
+                
+                <div id="skill-panel">
+                    <button id="skill-btn" class="skill-btn" onclick="handleSkillBtnClick()">🚀 发动技能</button>
+                </div>
+
+                <div id="reaction-panel">
+                    <div id="reaction-msg">...</div>
+                    <button class="react-btn btn-reject">No</button>
+                    <button class="react-btn btn-accept">Yes</button>
+                </div>
             </div>
+
             <div class="sidebar" id="sidebar-B">
-                <h3 class="team-title-B">B队行动表</h3>
+                <h3 class="team-title-B" id="title-B">B方</h3>
                 <div id="list-B"></div>
             </div>
         </div>
+
+        <div id="log-area"><div style="color: #aaa; text-align: center;">--- 战斗记录 ---</div></div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -117,34 +168,35 @@
         const STEP = (BOARD_WIDTH - PADDING * 2) / GRID_SIZE;
         let myId = null;
         let myTeam = null;
+        
+        let isSkillTargeting = false; 
+        let currentSkillType = null; 
+        let dragonStage = 0;
+        let dragonEnemyPos = null;
 
-        // --- 房间逻辑 ---
+        // 全局棋盘数据缓存 (用于点击判定)
+        let globalBoardData = [];
+
+        // --- 登录逻辑 ---
         function joinRoom() {
+            const nickname = document.getElementById('nickname-input').value.trim();
             const roomId = document.getElementById('room-input').value.trim();
-            if (!roomId) {
-                document.getElementById('login-msg').innerText = "请输入房间号！";
-                return;
-            }
-            // 发送加入请求
-            socket.emit('join_room', roomId);
+            if (!nickname) { document.getElementById('login-msg').innerText = "名字不能为空！"; return; }
+            if (!roomId) { document.getElementById('login-msg').innerText = "房间号不能为空！"; return; }
+            socket.emit('join_room', { roomId, nickname });
         }
-
-        // 监听加入结果
         socket.on('join_success', (roomId) => {
-            // 隐藏登录页，显示游戏页
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('main-ui').style.display = 'flex';
             document.getElementById('room-display').innerText = `房间: ${roomId}`;
-            
-            // 初始化绘图
             drawBoard(); initClickLayer();
         });
+        socket.on('join_fail', (msg) => { document.getElementById('login-msg').innerText = msg; });
 
-        socket.on('join_fail', (msg) => {
-            document.getElementById('login-msg').innerText = msg;
-        });
-
-        // --- 以下是原有的游戏逻辑 ---
+        function updateNames(names) {
+            if (names && names.A) document.getElementById('title-A').innerText = names.A;
+            if (names && names.B) document.getElementById('title-B').innerText = names.B;
+        }
 
         function renderSidebars(queues) {
             ['A', 'B'].forEach(team => {
@@ -155,69 +207,196 @@
                     div.className = 'queue-item';
                     if (item.isDead) div.classList.add('dead');
                     if (item.isCurrent) div.classList.add('current');
-                    div.innerHTML = `<div class="q-name">${item.name}</div><div class="q-rank">${item.rankTitle}</div>`;
+                    div.innerHTML = `<div class="q-header"><span class="q-name">${item.name}</span><span class="q-hp">❤️ ${item.hp}</span></div><div class="q-rank">${item.rankTitle}</div>`;
                     container.appendChild(div);
                 });
             });
         }
 
         function renderPieces(data) {
+            globalBoardData = data.board; // 更新全局缓存
+            
             const layer = document.getElementById('pieces-layer');
             layer.innerHTML = ''; 
+            
+            const btn = document.getElementById('skill-btn');
+            if (!isSkillTargeting) {
+                btn.style.display = 'none';
+                btn.classList.remove('targeting');
+                currentSkillType = null;
+            }
+
+            if (!data.pendingDecisionType) {
+                document.getElementById('reaction-panel').style.display = 'none';
+            }
+
             data.board.forEach(p => {
                 const el = document.createElement('div');
                 el.className = `piece team-${p.team}`;
                 el.style.left = (PADDING + p.x * STEP) + 'px';
                 el.style.top = (PADDING + p.y * STEP) + 'px';
-                el.innerHTML = `<div class="p-name">${p.name}</div>`;
+                
+                if (p.isChimeraActive) el.classList.add('chimera-active');
+                if (p.isFrozen) {
+                    el.style.filter = "grayscale(100%) opacity(0.8)";
+                    el.style.transform = "translate(-50%, -50%) scale(0.9)"; 
+                }
+                if (p.isVulnerable) el.style.border = "3px dashed #e74c3c";
+                if (p.isSilenced) el.style.boxShadow = "0 0 0 3px #9b59b6"; 
+
+                let displayName = p.name;
+                if (displayName.length === 4) displayName = displayName.substring(0, 2) + '<br>' + displayName.substring(2);
+                el.innerHTML = `<div class="p-name" style="line-height: 1.1;">${displayName}</div>`;
                 el.title = `${p.name}: ${p.desc}`;
                 
                 if (data.turn && data.turn.x === p.x && data.turn.y === p.y) {
                     if (data.myTeam === data.turn.team) {
                         el.classList.add('active'); 
+                        const sid = p.skillId;
+                        if (sid === 'silverash') {
+                            btn.innerHTML = `👁️ 鹰眼视觉`; btn.style.display = 'block'; currentSkillType = 'silverash';
+                        } else if (sid === 'mlynar') {
+                            btn.innerHTML = `📰 看报纸`; btn.style.display = 'block'; currentSkillType = 'mlynar';
+                        } else if (sid === 'amiya' && !p.isChimeraActive) { 
+                            btn.innerHTML = `🔥 奇美拉`; btn.style.display = 'block'; currentSkillType = 'amiya';
+                        } else if (sid === 'mensa') {
+                            btn.innerHTML = `📋 考核期`; btn.style.display = 'block'; currentSkillType = 'mensa';
+                        } else if (sid === 'ray') {
+                            btn.innerHTML = `🎯 沙地兽(狙击)`; btn.style.display = 'block'; currentSkillType = 'ray';
+                        } else if (sid === 'ycyx') {
+                            btn.innerHTML = `💌 我喜欢你(禁魔)`; btn.style.display = 'block'; currentSkillType = 'ycyx';
+                        } else if (sid === 'yellow') {
+                            btn.innerHTML = `🧹 反头派清洗`; btn.style.display = 'block'; currentSkillType = 'yellow';
+                        } else if (sid === 'dragon') {
+                            btn.innerHTML = `🐲 破碎大道/鲜蔬杯`; btn.style.display = 'block'; currentSkillType = 'dragon';
+                        } else if (sid === 'zhipao') {
+                            btn.innerHTML = `🎩 魔术师(换位)`; btn.style.display = 'block'; currentSkillType = 'zhipao';
+                        }
                     }
                 }
+                
                 el.onclick = (e) => { e.stopPropagation(); handleGridClick(p.x, p.y); };
                 layer.appendChild(el);
             });
 
             const turnInfo = document.getElementById('turn-info');
-            if (data.winner) {
-                turnInfo.innerText = "🏆 胜者: " + data.winner + " 方";
-            } else if (data.turn) {
-                turnInfo.innerText = `当前回合: ${data.turn.team} 方 [${data.turn.name} - ${data.turn.rankTitle}]`;
-            }
+            const names = data.playerNames || {A:'A方', B:'B方'};
+            if (data.winner) turnInfo.innerText = `🏆 胜者: ${names[data.winner]}`;
+            else if (data.turn) turnInfo.innerText = `当前回合: ${names[data.turn.team]} [${data.turn.name} - ${data.turn.rankTitle}]`;
             myTeam = data.myTeam;
+            updateNames(data.playerNames);
+            
+            if (data.systemLogs && data.systemLogs.length > 0) {
+                data.systemLogs.forEach(log => {
+                    addLog(`<span style="color:#e67e22; font-weight:bold;">⚠️ ${log}</span>`);
+                });
+            }
+        }
+
+        // --- 技能按钮点击逻辑 ---
+        function handleSkillBtnClick() {
+            if (currentSkillType === 'mlynar') {
+                if (confirm("确定要【看报纸】摸鱼吗？(等级+1，结束回合)")) socket.emit('use_skill', { x: 0, y: 0 });
+            } else if (currentSkillType === 'amiya') {
+                if (confirm("确定要开启【奇美拉】吗？(下一次攻击必胜)")) socket.emit('use_skill', { x: 0, y: 0 });
+            } else if (currentSkillType === 'yellow') {
+                if (confirm("确定要发动【反头派清洗】吗？(不死不休，攻击全场所有敌方淀粉角色)")) socket.emit('use_skill', { x: 0, y: 0 });
+            } else if (currentSkillType === 'silverash') {
+                toggleSkillMode();
+            } else if (currentSkillType === 'mensa') {
+                alert("请点击选择一个敌方单位进行考核");
+                toggleSkillMode();
+            } else if (currentSkillType === 'ray') {
+                alert("请点击任意一个敌方单位进行全图狙击");
+                toggleSkillMode();
+            } else if (currentSkillType === 'ycyx') {
+                alert("请选择一个【周围八格】内的敌方单位");
+                toggleSkillMode();
+            } else if (currentSkillType === 'dragon') {
+                dragonStage = 0; dragonEnemyPos = null;
+                alert("龙哥哥技能模式：\n1. 点击【同行/同列】触发地火(AOE)\n2. 点击【周围敌方】触发鲜蔬杯(第一步选敌，第二步选友)");
+                toggleSkillMode();
+            } else if (currentSkillType === 'zhipao') {
+                alert("请点击选择一个队友进行位置交换");
+                toggleSkillMode();
+            }
+        }
+
+        // --- 切换技能瞄准模式 ---
+        function toggleSkillMode() {
+            const btn = document.getElementById('skill-btn');
+            isSkillTargeting = !isSkillTargeting;
+            if (isSkillTargeting) {
+                btn.innerHTML = "❌ 取消选择";
+                btn.classList.add('targeting');
+            } else {
+                dragonStage = 0; dragonEnemyPos = null; 
+                if (currentSkillType === 'silverash') btn.innerHTML = "👁️ 鹰眼视觉";
+                else if (currentSkillType === 'mensa') btn.innerHTML = "📋 考核期";
+                else if (currentSkillType === 'ray') btn.innerHTML = "🎯 沙地兽(狙击)";
+                else if (currentSkillType === 'ycyx') btn.innerHTML = "💌 我喜欢你(禁魔)";
+                else if (currentSkillType === 'dragon') btn.innerHTML = "🐲 破碎大道/鲜蔬杯";
+                else if (currentSkillType === 'zhipao') btn.innerHTML = "🎩 魔术师(换位)";
+                btn.classList.remove('targeting');
+            }
+        }
+
+        // --- 棋盘点击处理 ---
+        function handleGridClick(x, y) {
+            if (isSkillTargeting) {
+                if (currentSkillType === 'dragon') {
+                    if (dragonStage === 0) {
+                        const target = globalBoardData.find(p => p.x === x && p.y === y);
+                        if (target && target.team !== myTeam) {
+                            if (confirm(`选中了敌人 [${target.name}]，是否要发动【鲜蔬杯】？\n(点击确定后，请再选择一个周围的队友)`)) {
+                                dragonStage = 1;
+                                dragonEnemyPos = { x, y };
+                                return; 
+                            }
+                        }
+                        socket.emit('use_skill', { x, y });
+                        toggleSkillMode();
+                    } 
+                    else if (dragonStage === 1) {
+                        socket.emit('use_skill', { 
+                            x: dragonEnemyPos.x,
+                            y: dragonEnemyPos.y,
+                            allyX: x,            
+                            allyY: y 
+                        });
+                        toggleSkillMode();
+                    }
+                } else {
+                    socket.emit('use_skill', { x, y });
+                    toggleSkillMode(); 
+                }
+            } else {
+                socket.emit('move', { x, y });
+            }
         }
 
         function drawBoard() {
             const ctx = document.getElementById('boardCanvas').getContext('2d');
             ctx.clearRect(0, 0, 500, 500);
             const getPos = i => PADDING + i * STEP;
-
             ctx.strokeStyle = "#7f8c8d"; ctx.lineWidth = 2; ctx.lineCap = "round";
             for (let i = 0; i <= 6; i++) {
                 ctx.beginPath(); ctx.moveTo(getPos(0), getPos(i)); ctx.lineTo(getPos(6), getPos(i)); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(getPos(i), getPos(0)); ctx.lineTo(getPos(i), getPos(6)); ctx.stroke();
             }
-
             ctx.strokeStyle = "#c0392b"; ctx.lineWidth = 5; 
             ctx.beginPath();
-            // A. 左上角 X型
             ctx.moveTo(getPos(0), getPos(0)); ctx.lineTo(getPos(2), getPos(2));
             ctx.moveTo(getPos(2), getPos(0)); ctx.lineTo(getPos(0), getPos(2));
-            // B. 左下角
             ctx.moveTo(getPos(2), getPos(2)); ctx.lineTo(getPos(0), getPos(4));
             ctx.moveTo(getPos(2), getPos(2)); ctx.lineTo(getPos(2), getPos(6));
             ctx.moveTo(getPos(2), getPos(6)); ctx.lineTo(getPos(1), getPos(5));
-            // C. 右上角
             ctx.moveTo(getPos(3), getPos(0)); ctx.lineTo(getPos(4), getPos(1));
             ctx.moveTo(getPos(3), getPos(1)); ctx.lineTo(getPos(5), getPos(1));
             ctx.moveTo(getPos(3), getPos(2)); ctx.lineTo(getPos(5), getPos(2));
             ctx.moveTo(getPos(3), getPos(3)); ctx.lineTo(getPos(5), getPos(3));
             ctx.moveTo(getPos(3), getPos(1)); ctx.lineTo(getPos(3), getPos(6));
             ctx.moveTo(getPos(5), getPos(1)); ctx.lineTo(getPos(5), getPos(3));
-            // D. 右下角
             ctx.moveTo(getPos(3), getPos(3)); ctx.lineTo(getPos(6), getPos(6));
             ctx.moveTo(getPos(3), getPos(6)); ctx.lineTo(getPos(4), getPos(5));
             ctx.moveTo(getPos(5), getPos(3)); ctx.lineTo(getPos(4), getPos(4));
@@ -236,23 +415,71 @@
                 layer.appendChild(div);
             }
         }
-        function handleGridClick(x, y) { socket.emit('move', { x, y }); }
+        
+        function addLog(html) {
+            const logArea = document.getElementById('log-area');
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.innerHTML = `[${new Date().toLocaleTimeString().slice(0,5)}] ${html}`;
+            logArea.appendChild(div);
+            logArea.scrollTop = logArea.scrollHeight; 
+        }
 
         socket.on('connect', () => { myId = socket.id; });
-        socket.on('game_init', (data) => {
-            // 以前这里会显示 "匹配成功"，现在改为更新状态即可
-            document.getElementById('turn-info').innerText = data.msg;
+        socket.on('game_init', (data) => { 
+            document.getElementById('turn-info').innerText = data.msg; 
+            addLog(`<span style="color:#2ecc71">${data.msg}</span>`);
         });
-        socket.on('update_board', (data) => {
-            renderPieces(data);
-            if (data.queues) renderSidebars(data.queues);
-        });
-        socket.on('error_msg', (msg) => alert(msg));
+        socket.on('update_board', (data) => { renderPieces(data); if (data.queues) renderSidebars(data.queues); });
+        socket.on('error_msg', (msg) => { addLog(`<span style="color:#e74c3c">❌ ${msg}</span>`); if(isSkillTargeting) toggleSkillMode(); });
+        
         socket.on('combat_effect', (res) => {
-            let msg = `⚔️ ${res.attackerRank} vs ${res.defenderRank}\n`;
-            msg += res.winner === 'draw' ? '同归于尽' : `${res.winner === 'attacker' ? '攻击方' : '防守方'} 获胜`;
-            alert(msg);
+            const attName = res.attackerName; const defName = res.defenderName;
+            const attRank = (res.attackerTeam === myTeam) ? res.attackerRank : '???';
+            const defRank = (res.defenderTeam === myTeam) ? res.defenderRank : '???';
+            let logHtml = `<span class="log-highlight">${attName}</span>(${attRank}) ⚔️ <span class="log-highlight">${defName}</span>(${defRank}) `;
+            if (res.winner === 'draw') logHtml += `-> <span style="color:#aaa">平手 (各-1血)</span>`;
+            else { const winnerName = (res.winner === 'attacker') ? attName : defName; logHtml += `-> <span class="log-win">${winnerName} 获胜!</span>`; }
+            
+            if (res.specialLog) {
+                logHtml += `<br><span class="log-special">${res.specialLog}</span>`;
+            }
+
+            addLog(logHtml);
         });
+
+        socket.on('skill_log', (msg) => { addLog(`<span style="color:#9b59b6">👁️ ${msg}</span>`); });
+        
+        socket.on('skill_reaction_request', (data) => {
+            const panel = document.getElementById('reaction-panel');
+            const msgDiv = document.getElementById('reaction-msg');
+            const btnReject = document.querySelector('.btn-reject');
+            const btnAccept = document.querySelector('.btn-accept');
+
+            const newBtnReject = btnReject.cloneNode(true);
+            const newBtnAccept = btnAccept.cloneNode(true);
+            btnReject.parentNode.replaceChild(newBtnReject, btnReject);
+            btnAccept.parentNode.replaceChild(newBtnAccept, btnAccept);
+
+            if (data.type === 've_reject') {
+                msgDiv.innerText = "对方发起决斗！是否发动【反驳型人格】拒绝决斗？";
+                newBtnReject.innerText = "🚫 拒绝"; 
+                newBtnReject.onclick = () => { socket.emit('resolve_duel', { accept: false }); panel.style.display = 'none'; };
+                newBtnAccept.innerText = "⚔️ 接受"; 
+                newBtnAccept.onclick = () => { socket.emit('resolve_duel', { accept: true }); panel.style.display = 'none'; };
+                panel.style.display = 'block';
+            } 
+            else if (data.type === 'a2_regret') {
+                msgDiv.innerText = "战斗已结算。是否发动【左右互搏】进行悔棋？(时间倒流)";
+                newBtnReject.innerText = "❌ 不悔棋"; 
+                newBtnReject.onclick = () => { socket.emit('resolve_a2_regret', { regret: false }); panel.style.display = 'none'; };
+                newBtnAccept.innerText = "⏳ 悔棋";   
+                newBtnAccept.onclick = () => { socket.emit('resolve_a2_regret', { regret: true }); panel.style.display = 'none'; };
+                panel.style.display = 'block';
+            }
+        });
+
+        drawBoard(); initClickLayer();
     </script>
 </body>
 </html>

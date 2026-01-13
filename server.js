@@ -1,3 +1,5 @@
+// server.js
+
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
@@ -9,93 +11,159 @@ const io = new Server(server);
 
 app.use(express.static(__dirname));
 
-// --- 全局状态 ---
-// games 依然存储所有房间的游戏逻辑： games['1001'] = new Game(...)
 const games = {};         
 
 io.on('connection', (socket) => {
     console.log('新玩家连接:', socket.id);
 
-    // --- 1. 监听加入房间请求 ---
-    socket.on('join_room', (roomId) => {
-        // 获取该房间当前的 socket 信息
-        // 注意：io.sockets.adapter.rooms 是一个 Map
+    // --- 1. 加入房间 ---
+    socket.on('join_room', (data) => {
+        const roomId = (typeof data === 'object') ? data.roomId : data;
+        const nickname = (typeof data === 'object') ? data.nickname : '神秘人';
+        socket.data.nickname = nickname;
+
         const room = io.sockets.adapter.rooms.get(roomId);
         const size = room ? room.size : 0;
 
         if (size === 0) {
-            // A. 房间不存在 -> 创建房间，我是房主
             socket.join(roomId);
-            socket.data.roomId = roomId; // 绑定房间号到 socket
+            socket.data.roomId = roomId; 
             socket.emit('join_success', roomId);
-            socket.emit('game_init', { msg: '等待对手加入...' });
-            
+            socket.emit('game_init', { msg: `你好 ${nickname}，等待对手...` });
         } else if (size === 1) {
-            // B. 房间有1人 -> 加入房间，开始游戏
             socket.join(roomId);
             socket.data.roomId = roomId;
             socket.emit('join_success', roomId);
-
-            // 获取对手的 socketId
-            // room 是一个 Set，转换成数组取第一个就是对手
             const [opponentId] = room; 
+            const opponentSocket = io.sockets.sockets.get(opponentId);
+            const opponentName = opponentSocket ? opponentSocket.data.nickname : '对手';
             
-            // 初始化游戏逻辑
-            games[roomId] = new Game(opponentId, socket.id);
+            games[roomId] = new Game(opponentId, opponentName, socket.id, nickname);
             const game = games[roomId];
-
-            // 通知房间内所有人
-            io.to(roomId).emit('game_init', { msg: '战斗开始！' });
             
+            io.to(roomId).emit('game_init', { msg: '战斗开始！' });
             game.startGame();
             sendGameState(roomId);
-            
-            console.log(`房间 ${roomId} 战斗开始: ${opponentId} vs ${socket.id}`);
-
         } else {
-            // C. 房间满员 -> 拒绝
             socket.emit('join_fail', '该房间已满员 (2/2)');
         }
     });
 
-    // --- 2. 监听：移动指令 ---
+    // --- 2. 移动与攻击处理 ---
     socket.on('move', (targetPos) => {
         const roomId = socket.data.roomId;
-        if (!roomId || !games[roomId]) return; // 没进房间或者游戏没开始
-
+        if (!roomId || !games[roomId]) return; 
         const game = games[roomId];
-        if (game.status !== 'PLAYING') return;
 
         const result = game.move({
             playerId: socket.id,
-            x: targetPos.x,
-            y: targetPos.y
+            x: targetPos.x, y: targetPos.y
         });
 
         if (result.success) {
             sendGameState(roomId);
+
+            if (result.type === 'pending_reaction') {
+                const defenderSocketId = result.defenderOwner;
+                io.to(defenderSocketId).emit('skill_reaction_request', { type: 've_reject' });
+                io.to(roomId).emit('skill_log', result.msg);
+                return; 
+            }
+            
+            if (result.type === 'pending_a2_choice') {
+                io.to(roomId).emit('combat_effect', result.combatResult);
+                const attackerSocketId = result.attackerOwner;
+                setTimeout(() => {
+                    io.to(attackerSocketId).emit('skill_reaction_request', { type: 'a2_regret' });
+                }, 1500);
+                return;
+            }
+
             if (result.type === 'combat') {
                 io.to(roomId).emit('combat_effect', result.result);
             }
-            if (game.winner) {
-                io.to(roomId).emit('game_over', { winner: game.winner });
-                delete games[roomId];
+            
+            if (result.specialLog) {
+                io.to(roomId).emit('skill_log', result.specialLog);
             }
+
+            checkGameOver(roomId, game);
+
+        } else {
+            if (result.isTaunt) {
+                const playerNick = socket.data.nickname || "玩家";
+                io.to(roomId).emit('skill_log', `⚠️ ${playerNick} 试图攻击，但被 [${result.taunter}] 嘲讽了！`);
+            }
+            socket.emit('error_msg', result.msg);
+        }
+    });
+
+    // --- 3. 处理技能响应 ---
+    socket.on('resolve_duel', (data) => {
+        const roomId = socket.data.roomId;
+        if (!roomId || !games[roomId]) return; 
+        const game = games[roomId];
+        
+        const decision = data.accept ? 'accept' : 'reject';
+        const result = game.resolveReaction(socket.id, decision);
+
+        if (result.success) {
+            sendGameState(roomId);
+            if (result.reacted) {
+                io.to(roomId).emit('skill_log', result.log);
+            } else if (result.type === 'combat') {
+                 io.to(roomId).emit('skill_log', "🛡️ [VE] 接受了挑战！");
+                 io.to(roomId).emit('combat_effect', result.result);
+            }
+            checkGameOver(roomId, game);
+        }
+    });
+
+    socket.on('resolve_a2_regret', (data) => {
+        const roomId = socket.data.roomId;
+        if (!roomId || !games[roomId]) return; 
+        const game = games[roomId];
+        const result = game.resolveA2Regret(socket.id, data.regret);
+        if (result.success) {
+            sendGameState(roomId);
+            if (result.publicMsg) {
+                io.to(roomId).emit('skill_log', result.publicMsg);
+            }
+            checkGameOver(roomId, game);
+        }
+    });
+
+    // --- 5. 主动技能 ---
+    socket.on('use_skill', (targetPos) => {
+        const roomId = socket.data.roomId;
+        if (!roomId || !games[roomId]) return; 
+        const game = games[roomId];
+
+        const result = game.useSkill({
+            playerId: socket.id,
+            x: targetPos.x, y: targetPos.y,
+            allyX: targetPos.allyX, 
+            allyY: targetPos.allyY
+        });
+
+        if (result.success) {
+            if (result.publicMsg) io.to(roomId).emit('skill_log', result.publicMsg);
+            if (result.privateMsg) socket.emit('skill_log', `🕵️ ${result.privateMsg}`); 
+            if (result.consumeTurn) {
+                game.endTurn();
+            }
+            sendGameState(roomId);
+            checkGameOver(roomId, game);
         } else {
             socket.emit('error_msg', result.msg);
         }
     });
 
-    // --- 3. 断开连接 ---
     socket.on('disconnect', () => {
         const roomId = socket.data.roomId;
-        if (roomId) {
-            // 如果游戏正在进行，通知对手
-            if (games[roomId]) {
-                io.to(roomId).emit('error_msg', '对方已断开连接，请刷新页面重新开始。');
-                delete games[roomId];
-            }
-            console.log(`玩家离开房间 ${roomId}:`, socket.id);
+        if (roomId && games[roomId]) {
+            io.to(roomId).emit('error_msg', '对方已断开连接，游戏结束。');
+            delete games[roomId];
         }
     });
 });
@@ -103,7 +171,6 @@ io.on('connection', (socket) => {
 function sendGameState(roomId) {
     const game = games[roomId];
     if (!game) return;
-
     io.in(roomId).fetchSockets().then(sockets => {
         sockets.forEach(playerSocket => {
             const personalizedData = game.getBoardForPlayer(playerSocket.id);
@@ -112,6 +179,15 @@ function sendGameState(roomId) {
     });
 }
 
-server.listen(3000, () => {
-    console.log('战棋服务器启动: http://localhost:3000');
+function checkGameOver(roomId, game) {
+    if (game.winner) {
+        const winnerName = game.playerNames[game.winner];
+        io.to(roomId).emit('game_over', { winner: game.winner, winnerName: winnerName });
+        delete games[roomId]; 
+    }
+}
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`游戏服务器启动，监听端口: ${PORT}`);
 });
